@@ -306,5 +306,97 @@ public function update()
     }
 }
 
+public function index1()
+    {
+        $user_id = session()->get('user_id');
+    $token = session()->get('token');
+    if (!$user_id && !$token) {
+        return redirect()->to('/login')->with('error', 'Please log in to access the user-upload.');
+    }
+        return view('upload_form');
+    }
 
+    public function upload()
+    {
+        $file = $this->request->getFile('csv_file');
+
+        // Check if file is uploaded
+        if ($file->isValid() && !$file->hasMoved()) {
+            $filePath = $file->getTempName();
+            $this->processCSV($filePath);
+        } else {
+            return redirect()->to('/user-upload')->with('error', 'File upload failed.');
+        }
+        return redirect()->to('/dashboard')->with('success', 'Users successfully registered and synced with MongoDB.');
+
+    }
+
+    private function processCSV($filePath)
+    {
+        $csvFile = fopen($filePath, 'r');
+        $userModel = new UserModel();
+    
+        // Skip the header row if there is one
+        $header = fgetcsv($csvFile);
+    
+        // Read each row from CSV
+        while (($row = fgetcsv($csvFile)) !== false) {
+            // Assuming the CSV format: username, email, password
+            $username = $row[2];
+            $email = $row[3];
+            $password = password_hash($row[4], PASSWORD_BCRYPT); // Hash the password before storing
+    
+            // Prepare data for insertion into MySQL
+            $userData = [
+                'username' => $username,
+                'email' => $email,
+                'password' => $password,
+            ];
+    
+            // Check if the user already exists in MySQL based on email
+            $existingUser = $userModel->where('email', $email)->first();
+    
+            if ($existingUser) {
+                // If the user exists, skip inserting into MySQL (or you can update as needed)
+                log_message('info', 'User already exists in MySQL: ' . $email);
+            } else {
+                // Insert user into MySQL if not already present
+                $userModel->save($userData);
+            }
+    
+            // Now, also sync with MongoDB (similar to how you do it in the signup controller)
+            $this->syncMongoDB($userData);
+        }
+    
+        fclose($csvFile);
+        return redirect()->to('/user-upload')->with('success', 'Users successfully registered and synced with MongoDB.');
+    }
+    private function syncMongoDB($userData)
+    {
+        $client = new Client(); // Guzzle client
+
+        try {
+            $response = $client->post('http://localhost:3000/register', [
+                'json' => [
+                    
+                    'name' => $userData['username'],
+                    'email' => $userData['email'],
+                    'password' => $userData['password']
+                ]
+            ]);
+
+            // Check response from the Node.js API
+            if ($response->getStatusCode() == 200) {
+                // Success in syncing with MongoDB
+                log_message('info', 'User successfully synchronized with MongoDB.');
+            } else {
+                // Handle error
+                log_message('error', 'Failed to sync with MongoDB.');
+            }
+        } catch (\Exception $e) {
+            // Handle exception (e.g., Node.js server is down)
+            log_message('error', 'Error syncing with MongoDB: ' . $e->getMessage());
+        }
+    }
+    
 }

@@ -15,6 +15,9 @@ $routes->get('/dashboard','Home::Dashboard');
 $routes->get('/logout', 'Home::logout');
 $routes->get('/delete/(:num)/(:any)', 'Home::deleteUser/$1/$2');
 $routes->delete('/delete/(:num)/(:any)', 'Home::deleteUser/$1/$2');
+$routes->get('/user-upload', 'Home::index1');
+$routes->post('/user-upload/upload', 'Home::upload');
+
 
 $routes->post('/update', 'Home::update');
 

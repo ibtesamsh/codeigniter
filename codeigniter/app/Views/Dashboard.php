@@ -9,6 +9,25 @@
 </head>
 
 <body class="bg-gray-100 font-sans leading-normal tracking-normal">
+      <!-- Flash messages -->
+      <?php if(session()->getFlashdata('error')): ?>
+    <div class="text-red-500 mb-4 p-2 bg-red-100 border border-red-400 rounded relative">
+        <button onclick="this.parentElement.style.display='none'" class="absolute top-0 right-0 p-2 text-red-700 hover:text-red-900 bg-transparent border-none">
+            ×
+        </button>
+        <?php echo session()->getFlashdata('error'); ?>
+    </div>
+<?php endif; ?>
+
+<?php if(session()->getFlashdata('success')): ?>
+    <div class="text-green-500 mb-4 p-2 bg-green-100 border border-green-400 rounded relative">
+        <button onclick="this.parentElement.style.display='none'" class="absolute top-0 right-0 p-2 text-green-700 hover:text-green-900 bg-transparent border-none">
+            ×
+        </button>
+        <?php echo session()->getFlashdata('success'); ?>
+    </div>
+<?php endif; ?>
+
 
     <!-- Main Container -->
     <div class="max-w-screen-lg mx-auto p-6">
@@ -45,7 +64,10 @@
                     <button id="downloadCsvButton" class="ml-4 py-2 px-4 bg-green-500 text-white rounded-lg hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500">
                         Download CSV
                     </button>
+                    <button class="ml-4 py-2 px-4 bg-green-500 text-white rounded-lg hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500"><a href="/user-upload">upload</a></button>
                 </div>
+
+
                 <tbody class="text-gray-700" id="userTableBody">
                     <!-- Loop through users and display their data -->
                     <?php foreach ($users as $user)
@@ -113,60 +135,93 @@
 
     
     <div class="flex justify-center mt-6">
-        <nav class="inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-            <!-- Previous Page Button -->
-            <?php if ($current_page > 1): ?>
-                <a href="?page=<?php echo $current_page - 1; ?>" class="px-4 py-2 bg-gray-200 text-gray-700 border border-gray-300 rounded-l-md hover:bg-gray-300">Previous</a>
-            <?php else: ?>
-                <span class="px-4 py-2 bg-gray-200 text-gray-500 border border-gray-300 rounded-l-md">Previous</span>
-            <?php endif; ?>
+    <nav class="flex flex-col items-center" aria-label="Pagination">
+    <!-- Page Numbers -->
+    <div class="inline-flex mb-4">
+        <?php if ($current_page > 1): ?>
+            <a href="?page=1" class="px-4 py-2 bg-gray-200 text-gray-700 border border-gray-300 rounded-l-md hover:bg-gray-300">First</a>
+            <a href="?page=<?php echo $current_page - 1; ?>" class="px-4 py-2 bg-gray-200 text-gray-700 border border-gray-300 hover:bg-gray-300">Previous</a>
+        <?php else: ?>
+            <span class="px-4 py-2 bg-gray-200 text-gray-500 border border-gray-300 rounded-l-md">First</span>
+            <span class="px-4 py-2 bg-gray-200 text-gray-500 border border-gray-300">Previous</span>
+        <?php endif; ?>
 
-            <!-- Page Numbers -->
-            <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                <a href="?page=<?php echo $i; ?>" class="px-4 py-2 bg-gray-200 text-gray-700 border border-gray-300 hover:bg-blue-500 hover:text-white <?php if ($i == $current_page) echo 'bg-blue-500 text-white'; ?>"><?php echo $i; ?></a>
-            <?php endfor; ?>
+        <!-- Display Page Numbers with Ellipsis Handling -->
+        <?php
+        $page_range = 2; // Display this many pages before and after the current page
+        $start_page = max(1, $current_page - $page_range);
+        $end_page = min($total_pages, $current_page + $page_range);
 
-            <!-- Next Page Button -->
-            <?php if ($current_page < $total_pages): ?>
-                <a href="?page=<?php echo $current_page + 1; ?>" class="px-4 py-2 bg-gray-200 text-gray-700 border border-gray-300 rounded-r-md hover:bg-gray-300">Next</a>
-            <?php else: ?>
-                <span class="px-4 py-2 bg-gray-200 text-gray-500 border border-gray-300 rounded-r-md">Next</span>
-            <?php endif; ?>
-        </nav>
+        // Show first page and ellipses if necessary
+        if ($start_page > 1) {
+            echo '<a href="?page=1" class="px-4 py-2 bg-gray-200 text-gray-700 border border-gray-300 hover:bg-blue-500 hover:text-white">1</a>';
+            if ($start_page > 2) {
+                echo '<span class="px-4 py-2 bg-gray-200 text-gray-500 border border-gray-300">...</span>';
+            }
+        }
+
+        for ($i = $start_page; $i <= $end_page; $i++) {
+            echo '<a href="?page=' . $i . '" class="px-4 py-2 bg-gray-200 text-gray-700 border border-gray-300 hover:bg-blue-500 hover:text-white ' . ($i == $current_page ? 'bg-blue-500 text-white' : '') . '">' . $i . '</a>';
+        }
+
+        // Show last page and ellipses if necessary
+        if ($end_page < $total_pages) {
+            if ($end_page < $total_pages - 1) {
+                echo '<span class="px-4 py-2 bg-gray-200 text-gray-500 border border-gray-300">...</span>';
+            }
+            echo '<a href="?page=' . $total_pages . '" class="px-4 py-2 bg-gray-200 text-gray-700 border border-gray-300 hover:bg-blue-500 hover:text-white">' . $total_pages . '</a>';
+        }
+        ?>
+
+        <?php if ($current_page < $total_pages): ?>
+            <a href="?page=<?php echo $current_page + 1; ?>" class="px-4 py-2 bg-gray-200 text-gray-700 border border-gray-300 hover:bg-gray-300">Next</a>
+            <a href="?page=<?php echo $total_pages; ?>" class="px-4 py-2 bg-gray-200 text-gray-700 border border-gray-300 rounded-r-md hover:bg-gray-300">Last</a>
+        <?php else: ?>
+            <span class="px-4 py-2 bg-gray-200 text-gray-500 border border-gray-300">Next</span>
+            <span class="px-4 py-2 bg-gray-200 text-gray-500 border border-gray-300 rounded-r-md">Last</span>
+        <?php endif; ?>
+    </div>
+</nav>
+
+
     </div>
 
     <script>
+        
+        
+        //-----------------------------------------------dcsv----------------------------------
         function downloadCSV() {
-            const rows = document.querySelectorAll('#userTableBody tr');
-            let csvContent = 'ID,mongoId,Username,Email\n'; // Add headers
+    const rows = document.querySelectorAll('#userTableBody tr');
+    let csvContent = 'ID,mongoId,Username,Email\n'; // Add headers
 
-            rows.forEach(row => {
-                const cols = row.querySelectorAll('td');
-                const rowData = [
-                    cols[0].innerText, // ID
-                    cols[1].innerText, // mongoId
-                    cols[2].innerText, // Username
-                    cols[3].innerText // Email
-                ];
-                csvContent += rowData.join(',') + '\n';
-            });
+    rows.forEach(row => {
+        const cols = row.querySelectorAll('td');
+        const rowData = [
+            cols[0].innerText, // ID
+            cols[1].innerText, // mongoId
+            cols[2].innerText, // Username
+            cols[3].innerText // Email
+        ];
+        csvContent += rowData.join(',') + '\n';
+    });
 
-            // Create a Blob and trigger download
-            const blob = new Blob([csvContent], {
-                type: 'text/csv;charset=utf-8;'
-            });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            link.setAttribute('download', 'users.csv');
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
+    // Create a data URI for the CSV content
+    const encodedCSV = encodeURIComponent(csvContent);
+    const dataURI = 'data:text/csv;charset=utf-8,' + encodedCSV;
 
-        // Event listener for download button
-        document.getElementById('downloadCsvButton').addEventListener('click', downloadCSV);
+    // Create a link and trigger the download
+    const link = document.createElement('a');
+    link.setAttribute('href', dataURI);
+    link.setAttribute('download', 'users.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// Event listener for download button
+document.getElementById('downloadCsvButton').addEventListener('click', downloadCSV);
+
         // let userIdToDelete = null;
         let userToEdit = null;
         // let mongoIdToDelete = null;
