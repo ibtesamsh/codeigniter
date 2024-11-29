@@ -109,8 +109,6 @@ const deleteUser = async (req, res) => {
     // The middleware will ensure that the token is valid, and user_id will be added to the request object
     const { id } = req.params;
     
-    
-
     // Find the user by their ID in the database
     const existingUser = await user.findByIdAndDelete({_id:id});
     if (!existingUser) {

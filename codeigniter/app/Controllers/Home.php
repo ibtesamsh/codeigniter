@@ -197,13 +197,14 @@ public function dashboard()
     public function logout()
     {
         session()->remove('user_id');  // Remove the user ID from session
-        session()->destroy();  // Destroy the session
+        session()->remove('token');
+        // session()->destroy();  // Destroy the session
         return redirect()->to('/login')->with('success', 'You have been logged out!');
     }
 // -----------------------------delete------------------------------------
 
 public function deleteUser($id, $mongoId)
-{ echo"mongoId";
+{ 
     $user_model = new UserModel();
 
     // Delete the user from the relational database (MySQL, etc.)
@@ -305,7 +306,7 @@ public function update()
         return $this->response->setJSON(['success' => false, 'message' => 'Unable to update MongoDB data']);
     }
 }
-
+//---------------------------------------upload bulk user data-----------------------------------------------//
 public function index1()
     {
         $user_id = session()->get('user_id');
@@ -316,61 +317,112 @@ public function index1()
         return view('upload_form');
     }
 
+   
     public function upload()
-    {
-        $file = $this->request->getFile('csv_file');
+{
+    $file = $this->request->getFile('csv_file');
+    $invalidRows = []; // Array to store invalid rows
 
-        // Check if file is uploaded
-        if ($file->isValid() && !$file->hasMoved()) {
-            $filePath = $file->getTempName();
-            $this->processCSV($filePath);
-        } else {
-            return redirect()->to('/user-upload')->with('error', 'File upload failed.');
-        }
+    // Check if file is uploaded
+    if ($file->isValid() && !$file->hasMoved()) {
+        $filePath = $file->getTempName();
+        $invalidRows = $this->processCSV($filePath); // Pass to processCSV and get invalid rows
+    } else {
+        return redirect()->to('/user-upload')->with('error', 'File upload failed.');
+    }
+
+    // After processing, if there are any invalid rows, create a CSV for them
+    if (!empty($invalidRows)) {
+        // Generate and download CSV for invalid rows
+        return $this->generateInvalidCSV($invalidRows); // Create CSV and trigger download
+    } else {
         return redirect()->to('/dashboard')->with('success', 'Users successfully registered and synced with MongoDB.');
-
     }
+}
 
+    
+    
+    //-------------------------
     private function processCSV($filePath)
-    {
-        $csvFile = fopen($filePath, 'r');
-        $userModel = new UserModel();
-    
-        // Skip the header row if there is one
-        $header = fgetcsv($csvFile);
-    
-        // Read each row from CSV
-        while (($row = fgetcsv($csvFile)) !== false) {
-            // Assuming the CSV format: username, email, password
-            $username = $row[2];
-            $email = $row[3];
-            $password = password_hash($row[4], PASSWORD_BCRYPT); // Hash the password before storing
-    
-            // Prepare data for insertion into MySQL
-            $userData = [
-                'username' => $username,
-                'email' => $email,
-                'password' => $password,
-            ];
-    
-            // Check if the user already exists in MySQL based on email
-            $existingUser = $userModel->where('email', $email)->first();
-    
-            if ($existingUser) {
-                // If the user exists, skip inserting into MySQL (or you can update as needed)
-                log_message('info', 'User already exists in MySQL: ' . $email);
-            } else {
-                // Insert user into MySQL if not already present
-                $userModel->save($userData);
-            }
-    
-            // Now, also sync with MongoDB (similar to how you do it in the signup controller)
-            $this->syncMongoDB($userData);
+{
+    $csvFile = fopen($filePath, 'r');
+    $userModel = new UserModel();
+    $invalidRows = []; // Array to store invalid rows
+    $validUserData = []; // Array to collect valid users for batch insert
+
+    // Skip the header row if there is one
+    $header = fgetcsv($csvFile);
+
+    // Read each row from CSV
+    while (($row = fgetcsv($csvFile)) !== false) {
+
+        $username = $row[0];
+        $email = $row[1];
+        $password = $row[2];
+
+        // If any required field is empty, mark this row as invalid
+        if (empty($username) || empty($email) || empty($password)) {
+            $invalidRows[] = $row; // Add the whole row to invalid rows
+            continue; // Skip processing this row for database insertion
         }
-    
-        fclose($csvFile);
-        return redirect()->to('/user-upload')->with('success', 'Users successfully registered and synced with MongoDB.');
+
+        // Hash the password before storing
+        $passwordHash = password_hash($password, PASSWORD_BCRYPT);
+
+        // Prepare data for insertion into MySQL
+        $userData = [
+            'username' => $username,
+            'email' => $email,
+            'password' => $passwordHash,
+        ];
+
+        // Check if the user already exists in MySQL based on email
+        $existingUser = $userModel->where('email', $email)->first();
+
+        if ($existingUser) {
+            log_message('info', 'User already exists in MySQL: ' . $email);
+        } else {
+            // Add to valid user data array for batch insert
+            $validUserData[] = $userData;
+        }
+
+        // Now, also sync with MongoDB (same as before)
+        $this->syncMongoDB($userData);
     }
+
+    // If there are valid users, insert them in batch
+    if (!empty($validUserData)) {
+        $userModel->insertBatch($validUserData); // Perform batch insert
+    }
+
+    fclose($csvFile);
+    return $invalidRows; // Return invalid rows to be processed later
+}
+
+    //--------------------------------
+    private function generateInvalidCSV($invalidRows)
+{
+    $filename = 'invalid_rows_' . time() . '.csv';
+    $filePath = WRITEPATH . 'uploads/' . $filename;
+
+    // Open a new file to write invalid rows
+    $file = fopen($filePath, 'w');
+
+    // Write header if you want to include it
+    fputcsv($file, ['Username', 'Email', 'Password']);
+
+    // Write each invalid row to the CSV
+    foreach ($invalidRows as $row) {
+        fputcsv($file, $row);
+    }
+
+    fclose($file);
+
+    // Force download of the CSV file
+    return $this->response->download($filePath, null)->setFileName($filename);
+}
+
+
     private function syncMongoDB($userData)
     {
         $client = new Client(); // Guzzle client
@@ -398,5 +450,7 @@ public function index1()
             log_message('error', 'Error syncing with MongoDB: ' . $e->getMessage());
         }
     }
+
+
     
 }
