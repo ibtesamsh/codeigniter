@@ -1,5 +1,6 @@
 import { user } from "../models/user.model.js";
 import auth from '../Auth.js';
+import bcrypt from "bcrypt";
 
 const login = async (req, res) => {
   try {
@@ -45,6 +46,7 @@ const registerUser = async (req, res) => {
     console.log(err);
     res.status(500).send({ message: "internal sever error" });
   }
+  
 };
 const logout = async (req, res) => {
   try {
@@ -125,6 +127,36 @@ const deleteUser = async (req, res) => {
   }
 };
 
+// app.post('/bulk-register', async (req, res) => {
+//   const users = req.body; // Array of user objects with raw passwords
 
-export { login, registerUser,logout ,dashboard,editUser,deleteUser};
+//   try {
+//       const result = await db.collection('users').insertMany(users);
+//       res.status(200).json({ success: true, insertedCount: result.insertedCount });
+//   } catch (err) {
+//       res.status(500).json({ success: false, error: err.message });
+//   }
+// });
+//----------------------------bulk------------------
+const bulkRegister = async (req, res) => {
+ 
+    const users = req.body; 
+    // console.log(users);
+    try {
+      const hashedUsers = await Promise.all(users.map(async (element) => {
+        const hashPassword = await bcrypt.hash(element.password, 10);
+        return { ...element, password: hashPassword }; 
+    }));
+    
+      const result = await user.insertMany(hashedUsers);
+      res.status(200).json({ success: true, insertedCount: result.insertedCount });
+      } catch (err) {
+        res.status(500).json({ success: false, error: err.message
+          });
+          }
+}
+
+
+
+export { login, registerUser,logout ,dashboard,editUser,deleteUser,bulkRegister};
   

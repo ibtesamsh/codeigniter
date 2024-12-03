@@ -15,14 +15,15 @@ app.use(
   })
 );
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json({ limit: "16kb" }));
+app.use(express.json({ limit: "750mb" }));
 app.use(cookie());
 app.use("/",(userRouter));
 
 app.post("/", (req, res) => {
   const {count}=req.body
-  console.log(count)
+  
 });
+
 
 connectDB()
 .then(() => {
